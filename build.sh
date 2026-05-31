@@ -25,17 +25,25 @@
 # Exit immediately if a command exits with a non-zero status.
 set -euo pipefail
 
-ENV_FILE=${1:-}
+# Default to .env if no argument is provided
+export TARGET_ENV=${1:-.env}
+
+# Shift past the first argument to capture any specific services provided
+if [ $# -gt 0 ]; then
+    shift
+fi
+
+TARGET_SERVICES="$@"
 
 build_all() {
-  echo "Starting S3 Docker containers using docker-compose..."
-  if [[ -n "${ENV_FILE}" ]]; then
-    echo "Using env file: ${ENV_FILE}"
-    docker-compose --env-file "${ENV_FILE}" up -d --wait
-  else
+  echo "Starting Shared Backing Services (${TARGET_SERVICES:-all}) using docker-compose..."
+  echo "Using environment file selection: ${TARGET_ENV}"
+  if [ -z "${TARGET_SERVICES}" ]; then
     docker-compose up -d --wait
+  else
+    docker-compose up -d --wait ${TARGET_SERVICES}
   fi
-  echo "Starting S3 Docker containers...done!"
+  echo "Starting Shared Backing Services...done!"
 }
 
 build_all
