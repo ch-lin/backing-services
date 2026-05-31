@@ -1,0 +1,15 @@
+name: shared-backing-services
+
+include:
+  # Include S3 infrastructure
+  - path: ./object-storage/docker-compose.yml
+    env_file: ./object-storage/${TARGET_ENV:-.env}
+
+  # Include central logging database
+  - path: ./central-logging/docker-compose.yml
+    env_file: ./central-logging/${TARGET_ENV:-.env}
+
+# Declare the shared network here
+networks:
+  shared-services-network:
+    external: true
