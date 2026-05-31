@@ -1,0 +1,53 @@
+# The MIT License (MIT)
+#
+# Copyright (c) 2025 Che-Hung Lin
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in
+# all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+# THE SOFTWARE.
+
+name: backing-services-central-logging
+
+x-common-env-files: &common-env-files
+  - ${APP_ENV_FILE:-.env}
+
+services:
+  # Database dedicated to receiving microservice logs
+  logging-db:
+    build: .
+    image: central-logging-db:local
+    container_name: logging-db
+    restart: unless-stopped
+    env_file: *common-env-files
+    networks:
+      shared-services-network:
+        ipv4_address: 172.16.10.22
+    # Uncomment the ports section below if you want to access the logs from the host using tools like DBeaver
+    # ports:
+    #   - "${LOGGING_DB_PORT:-3309}:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+      - MYSQL_USER=${MYSQL_USER:-logger}
+      - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      - MYSQL_DATABASE=central_logs
+    volumes:
+      - ./init-logs.sql:/docker-entrypoint-initdb.d/init.sql:ro
+      - "${LOGGING_DB_DATA_PATH}:/var/lib/mysql"
+
+networks:
+  shared-services-network:
+    external: true
