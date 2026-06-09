@@ -45,7 +45,6 @@ services:
       - MYSQL_PASSWORD=${MYSQL_PASSWORD}
       - MYSQL_DATABASE=central_logs
     volumes:
-      - ./init-logs.sql:/docker-entrypoint-initdb.d/init.sql:ro
       - "${LOGGING_DB_DATA_PATH}:/var/lib/mysql"
 
 networks:

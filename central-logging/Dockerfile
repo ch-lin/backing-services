@@ -26,6 +26,7 @@ FROM $BASE_CONTAINER
 LABEL maintainer="Che-Hung Lin <edward730109@gmail.com>"
 
 COPY --chown=mysql:mysql ./my.cnf /etc/mysql/conf.d/my.cnf
+COPY --chown=mysql:mysql ./init-logs.sql /docker-entrypoint-initdb.d/init.sql
 
 RUN mkdir -p /var/run/mysqld && \
     chown -R mysql:mysql /var/run/mysqld && \

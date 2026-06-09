@@ -25,11 +25,22 @@
 # Exit immediately if a command exits with a non-zero status.
 set -euo pipefail
 
+# Capture environment file if passed as first argument, otherwise use env var or default to .env
+if [ $# -gt 0 ] && [[ "$1" == *.env ]]; then
+    export TARGET_ENV="$1"
+    shift
+else
+    export TARGET_ENV="${TARGET_ENV:-.env}"
+fi
+
 TARGET_SERVICES="$@"
 
 clean_all() {
   echo "Stopping and removing all Shared Backing Services containers and networks..."
-  docker-compose down --remove-orphans || true
+  
+  # Tear down each isolated backing service project independently.
+  docker compose -p backing-object-storage -f ./object-storage/docker-compose.yml --env-file ./object-storage/${TARGET_ENV} down --remove-orphans || true
+  docker compose -p backing-central-logging -f ./central-logging/docker-compose.yml --env-file ./central-logging/${TARGET_ENV} down --remove-orphans || true
 
   echo "Removing all Backing Services Docker images..."
   docker image rm chrislusf/seaweedfs:latest amazon/aws-cli:latest nginx:alpine mysql:8.0 2>/dev/null || true
@@ -38,8 +49,26 @@ clean_all() {
 
 clean_specific() {
   echo "Stopping and removing specific Shared Backing Services (${TARGET_SERVICES})..."
-  docker-compose stop ${TARGET_SERVICES} 2>/dev/null || true
-  docker-compose rm -f ${TARGET_SERVICES} 2>/dev/null || true
+  
+  # Route target services to precisely stop the corresponding containers
+  OBJ_SVCS=""
+  LOG_SVCS=""
+  for svc in ${TARGET_SERVICES}; do
+    case "${svc}" in
+      s3|s3-setup|s3-proxy) OBJ_SVCS="${OBJ_SVCS} ${svc}" ;;
+      logging-db|database)  LOG_SVCS="${LOG_SVCS} ${svc}" ;;
+      *) OBJ_SVCS="${OBJ_SVCS} ${svc}"; LOG_SVCS="${LOG_SVCS} ${svc}" ;;
+    esac
+  done
+
+  if [ -n "${OBJ_SVCS}" ]; then
+    docker compose -p backing-object-storage -f ./object-storage/docker-compose.yml --env-file ./object-storage/${TARGET_ENV} stop ${OBJ_SVCS}
+    docker compose -p backing-object-storage -f ./object-storage/docker-compose.yml --env-file ./object-storage/${TARGET_ENV} rm -f ${OBJ_SVCS}
+  fi
+  if [ -n "${LOG_SVCS}" ]; then
+    docker compose -p backing-central-logging -f ./central-logging/docker-compose.yml --env-file ./central-logging/${TARGET_ENV} stop ${LOG_SVCS}
+    docker compose -p backing-central-logging -f ./central-logging/docker-compose.yml --env-file ./central-logging/${TARGET_ENV} rm -f ${LOG_SVCS}
+  fi
 
   echo "Removing specific Docker images..."
   for svc in ${TARGET_SERVICES}; do
