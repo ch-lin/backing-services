@@ -38,10 +38,31 @@ TARGET_SERVICES="$@"
 build_all() {
   echo "Starting Shared Backing Services (${TARGET_SERVICES:-all}) using docker-compose..."
   echo "Using environment file selection: ${TARGET_ENV}"
+  
+  # Ensure the shared network exists to avoid network not found errors during isolated startup
+  docker network inspect shared-services-network >/dev/null 2>&1 || docker network create shared-services-network
+
   if [ -z "${TARGET_SERVICES}" ]; then
-    docker-compose up -d --wait
+    docker compose -p backing-object-storage -f ./object-storage/docker-compose.yml --env-file ./object-storage/${TARGET_ENV} up -d --wait
+    docker compose -p backing-central-logging -f ./central-logging/docker-compose.yml --env-file ./central-logging/${TARGET_ENV} up -d --wait
   else
-    docker-compose up -d --wait ${TARGET_SERVICES}
+    # Route target services to prevent passing non-existent services to docker compose, avoiding errors
+    OBJ_SVCS=""
+    LOG_SVCS=""
+    for svc in ${TARGET_SERVICES}; do
+      case "${svc}" in
+        s3|s3-setup|s3-proxy) OBJ_SVCS="${OBJ_SVCS} ${svc}" ;;
+        logging-db|database)  LOG_SVCS="${LOG_SVCS} ${svc}" ;;
+        *) OBJ_SVCS="${OBJ_SVCS} ${svc}"; LOG_SVCS="${LOG_SVCS} ${svc}" ;;
+      esac
+    done
+
+    if [ -n "${OBJ_SVCS}" ]; then
+      docker compose -p backing-object-storage -f ./object-storage/docker-compose.yml --env-file ./object-storage/${TARGET_ENV} up -d --wait ${OBJ_SVCS}
+    fi
+    if [ -n "${LOG_SVCS}" ]; then
+      docker compose -p backing-central-logging -f ./central-logging/docker-compose.yml --env-file ./central-logging/${TARGET_ENV} up -d --wait ${LOG_SVCS}
+    fi
   fi
   echo "Starting Shared Backing Services...done!"
 }
